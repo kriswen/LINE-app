@@ -1,6 +1,6 @@
 require("dotenv").config();
-const { pushMessageToAll } = require("./src/bot.js");
-const { getUpcomingCalendarReminders } = require("./src/calendar.js");
+const { pushMessageToAll } = require("../src/bot.js");
+const { getUpcomingCalendarReminders } = require("../src/calendar.js");
 const path = require("path");
 const fs = require("fs");
 
@@ -10,7 +10,7 @@ let includeCalendarReminder = false;
 let includeCalendarReminderDays = 4;
 let excludePastCalendarEvents = true;
 let excludeTodayCalendarEvents = false;
-const messagePath = path.join(__dirname, "message.json");
+const messagePath = path.join(__dirname, "..", "message.json");
 
 try {
   if (fs.existsSync(messagePath)) {

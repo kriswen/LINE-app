@@ -41,7 +41,7 @@ async function main() {
 
         // 2. Upload the image to the rich menu
         console.log("Uploading rich_menu_cropped.jpg...");
-        const imagePath = path.join(__dirname, "rich_menu_cropped.jpg");
+        const imagePath = path.join(__dirname, "..", "assets", "rich_menu_cropped.jpg");
         const buffer = fs.readFileSync(imagePath);
         const blob = new Blob([buffer], { type: 'image/jpeg' });
         await clientBlob.setRichMenuImage(richMenuId, blob);

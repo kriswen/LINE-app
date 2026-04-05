@@ -4,6 +4,25 @@ This application sends automated, highly configurable medicine reminders, weathe
 
 *Note: This application has been entirely redesigned. It was migrated from the deprecated LINE Notify service to the official LINE Messaging API, and it now utilizes external HTTP chron triggers instead of keeping the server awake 24/7.*
 
+## Project Structure
+
+```
+LINE-Notify/
+├── src/              # Core application code (index.js, bot.js, calendar.js)
+├── public/           # Web dashboard (HTML, CSS, JS)
+├── scripts/          # Utility scripts (send-now, setup_rich_menu, debug_cal)
+├── sandbox/          # Ad-hoc test/debug scripts
+├── assets/           # Rich menu images
+├── docs/             # Architecture docs & deploy guides
+├── .github/workflows # CI/CD & scheduled triggers
+├── message.json      # Reminder config (auto-created, gitignored)
+├── subs.json         # Subscriber list (auto-created, gitignored)
+├── bp-logs.json      # Blood pressure logs (auto-created, gitignored)
+└── oneoff-reminders.json # One-off reminders (auto-created, gitignored)
+```
+
+> **Note:** The `.json` data files above are auto-created at runtime — you don't need to create them manually. See the `*.example.json` files in the project root for the expected formats.
+
 ## Overview
 
 1. You create a Bot on the [LINE Developer Console](https://developers.line.biz/console/).
@@ -31,7 +50,7 @@ CALENDAR_ID="YOUR_CALENDAR_ID@group.calendar.google.com"
 ```
 
 ### 2. Configure the Reminder Messages
-Edit the `message.json` file at the root of the project to customize the specific messages and features the bot will send:
+Edit the `message.json` file at the root of the project to customize the specific messages and features the bot will send (see `message.example.json` for the expected format):
 ```json
 {
     "reminders": [
@@ -57,7 +76,7 @@ Edit the `message.json` file at the root of the project to customize the specifi
 Install dependencies and run the local test script to verify your `message.json` payload without relying on the web server:
 ```bash
 npm install
-node send-now.js
+node scripts/send-now.js
 ```
 
 ### 4. Deploy to Render.com (Free Hosting)
