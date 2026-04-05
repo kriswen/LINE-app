@@ -1,0 +1,16 @@
+name: Wake Up Render Server
+
+on:
+  schedule:
+    # 00:55 UTC is 8:55 AM Taipei Time!
+    - cron: '55 0 * * *'
+    # 12:55 UTC is 8:55 PM Taipei Time!
+    - cron: '55 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the server
+        run: curl https://line-app-zqwh.onrender.com/

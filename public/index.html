@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE Bot Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+  <!-- Login Screen -->
+  <div id="login-container" class="active">
+    <div class="card login-card">
+      <div class="logo">💬</div>
+      <h1>Bot Settings</h1>
+      <p>Please enter the admin password</p>
+      <input type="password" id="password-input" placeholder="Password">
+      <button onclick="login()">Log In</button>
+      <div id="login-error" class="error-msg"></div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashboard-container">
+    <header>
+      <div class="header-content">
+        <h1>LINE Bot Dashboard</h1>
+        <button class="logout-btn" onclick="logout()">Log Out</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('reminders')">Reminders</button>
+        <button class="tab-btn" onclick="switchTab('oneoff')">One-Off</button>
+        <button class="tab-btn" onclick="switchTab('bp-logs')">BP/Weight Logs</button>
+      </div>
+
+      <div id="tab-reminders" class="tab-content active">
+        <form id="config-form" onsubmit="saveConfig(event)">
+          <div id="reminders-container"></div>
+          <div style="text-align: center; margin-bottom: 24px;">
+            <button type="button" class="add-btn" onclick="addReminder()">+ Add New Routine</button>
+          </div>
+          <!-- Save button floating bottom right -->
+          <div class="actions">
+            <span id="save-status"></span>
+            <button type="submit" class="save-btn" id="save-btn">Save Changes</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="tab-oneoff" class="tab-content">
+        <div class="card">
+          <h2 style="margin-bottom: 16px;">🔔 Create One-Off Reminder</h2>
+          <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+            Set a one-time reminder that sends a LINE message at the specified time and automatically deletes itself.
+          </p>
+          <form id="oneoff-form" onsubmit="submitOneOffReminder(event)">
+            <div class="bp-form-grid">
+              <div class="form-group">
+                <label>Date & Time</label>
+                <input type="datetime-local" id="oneoff-datetime" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Reminder Message</label>
+              <textarea id="oneoff-message" rows="3" placeholder="e.g. 帶爸爸去看醫生" required></textarea>
+            </div>
+            <button type="submit" class="save-btn" id="oneoff-submit-btn" style="width: 100%; margin-top: 8px;">Add Reminder</button>
+          </form>
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
+          <h2 style="margin-bottom: 16px;">📋 Upcoming Reminders</h2>
+          <div id="oneoff-list">
+            <!-- Filled by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-bp-logs" class="tab-content">
+        <div class="card">
+          <h2 style="margin-bottom: 16px;">Log Blood Pressure / Weight</h2>
+          <form id="bp-form" onsubmit="submitBpLog(event)">
+            <div class="bp-form-grid">
+              <div class="form-group">
+                <label>Date (Taipei Time)</label>
+                <input type="date" id="bp-date" required>
+              </div>
+              <div class="form-group">
+                <label>Systolic (收縮壓)</label>
+                <input type="number" id="bp-sys" placeholder="120" required>
+              </div>
+              <div class="form-group">
+                <label>Diastolic (舒張壓)</label>
+                <input type="number" id="bp-dia" placeholder="80" required>
+              </div>
+              <div class="form-group">
+                <label>Heart Rate (心跳)</label>
+                <input type="number" id="bp-hr" placeholder="72">
+              </div>
+              <div class="form-group">
+                <label>Weight (體重 kg)</label>
+                <input type="number" id="bp-weight" step="0.1" placeholder="65.5">
+              </div>
+            </div>
+            <button type="submit" class="save-btn" style="width: 100%; margin-top: 16px;">Save Log</button>
+          </form>
+        </div>
+        
+        <div class="card" style="margin-top: 24px;">
+          <h2 style="margin-bottom: 16px;">History</h2>
+          <div class="table-responsive">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>SYS / DIA</th>
+                  <th>HR</th>
+                  <th>Weight (kg)</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="bp-table-body">
+                <!-- Filled by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

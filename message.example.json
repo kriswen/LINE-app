@@ -1,0 +1,26 @@
+{
+    "reminders": [
+        {
+            "time": "09:00",
+            "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],
+            "message": "早安！這是阿伯早上 9 點的吃藥提醒，記得量血壓130以上才能吃西園降血壓藥喔！",
+            "includeMedicineReminder": true,
+            "includeWeather": true,
+            "includeCalendarReminder": true,
+            "includeCalendarReminderDays": 3,
+            "excludePastCalendarEvents": true,
+            "excludeTodayCalendarEvents": false
+        },
+        {
+            "time": "21:00",
+            "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],
+            "message": "晚安！這是阿伯晚上 9 點的吃藥提醒，記得量血壓130以上才能吃西園降血壓藥喔！",
+            "includeMedicineReminder": true,
+            "includeWeather": false,
+            "includeCalendarReminder": true,
+            "includeCalendarReminderDays": 3,
+            "excludePastCalendarEvents": true,
+            "excludeTodayCalendarEvents": true
+        }
+    ]
+}
