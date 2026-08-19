@@ -1,0 +1,21 @@
+# Cloudflare Worker Local Development Secrets
+# Copy this file to .dev.vars and fill in your values
+# DO NOT commit .dev.vars to version control
+
+# LINE Bot Credentials
+CHANNEL_ACCESS_TOKEN="your_channel_access_token_here"
+CHANNEL_SECRET="your_channel_secret_here"
+GROUP_ID="your_line_group_id_here"
+
+# Google Calendar
+CALENDAR_URL="https://calendar.google.com/calendar/ical/your_calendar_id/public/basic.ics"
+
+# Admin Dashboard (SHA-256 hash of your password)
+# Generate with: echo -n "your_password" | sha256sum
+ADMIN_PASSWORD_HASH="your_sha256_password_hash_here"
+
+# Dashboard URL (for LINE "設定" command)
+DASHBOARD_URL="https://your-worker.your-subdomain.workers.dev/dashboard"
+
+# Timezone (default: Asia/Taipei)
+TIMEZONE="Asia/Taipei"

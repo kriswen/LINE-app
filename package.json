@@ -1,23 +1,39 @@
 {
-  "name": "line-messaging-bot",
-  "version": "2.0.0",
-  "description": "A LINE Messaging API bot for scheduled reminders",
-  "main": "index.js",
+  "name": "line-reminder-bot",
+  "version": "3.0.0",
+  "description": "LINE Messaging API bot for scheduled reminders on Cloudflare Workers",
+  "main": "worker/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dry-run": "wrangler deploy --dry-run",
+    "types": "wrangler types",
+    "d1:create": "wrangler d1 create line-reminder-db",
+    "d1:migrate:local": "wrangler d1 migrations apply line-reminder-db --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply line-reminder-db --remote",
+    "d1:execute:local": "wrangler d1 execute line-reminder-db --local --command",
+    "d1:execute:remote": "wrangler d1 execute line-reminder-db --remote --command",
+    "d1:backup": "wrangler d1 export line-reminder-db --remote --output backup.sql",
+    "tail": "wrangler tail"
   },
   "keywords": [
     "LINE",
     "LINE Messaging API",
-    "Bot"
+    "Bot",
+    "Cloudflare Workers",
+    "D1"
   ],
   "author": "Kris Wen",
+  "license": "MIT",
   "dependencies": {
-    "@line/bot-sdk": "^10.6.0",
-    "dotenv": "^17.3.1",
-    "express": "^4.17.1",
-    "node-cron": "^4.2.1",
-    "node-fetch": "^2.6.1",
+    "hono": "^4.6.0",
     "node-ical": "^0.25.4"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0",
+    "@cloudflare/workers-types": "^4.20240821.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

@@ -1,7 +1,43 @@
-node_modules
-**/.DS_Store
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment files
+.dev.vars
 .env
-message.json
-subs.json
-bp-logs.json
-oneoff-reminders.json
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Wrangler
+.wrangler/
+
+# Database
+*.sqlite
+*.db
+
+# Backup files
+*.bak
+*.backup
+
+# Migration output
+import-data.sql
