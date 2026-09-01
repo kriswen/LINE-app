@@ -27,9 +27,6 @@ export async function verifyLineSignature(body, signature, channelSecret) {
 
 function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
+  const encoder = new TextEncoder();
+  return crypto.subtle.timingSafeEqual(encoder.encode(a), encoder.encode(b));
 }

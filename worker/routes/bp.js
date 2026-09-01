@@ -17,12 +17,19 @@ bpRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
     const { date, sys, dia, hr, weight } = body;
+    const normalized = {
+      date,
+      sys: Number(sys),
+      dia: Number(dia),
+      hr: hr === '' || hr == null ? null : Number(hr),
+      weight: weight === '' || weight == null ? null : Number(weight),
+    };
 
-    if (!date || !sys || !dia) {
-      return c.json({ error: 'Missing required fields' }, 400);
+    if (!isValidBpLog(normalized)) {
+      return c.json({ error: 'Invalid blood-pressure record' }, 400);
     }
 
-    const id = await createBpLog(c.env.DB, { date, sys, dia, hr, weight });
+    const id = await createBpLog(c.env.DB, normalized);
     const logs = await getBpLogs(c.env.DB);
     const newLog = logs.find((l) => l.id === id);
 
@@ -32,6 +39,19 @@ bpRoutes.post('/', async (c) => {
     return c.json({ error: 'Failed to save BP log' }, 500);
   }
 });
+
+function isValidBpLog(log) {
+  if (typeof log.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(log.date)) return false;
+  const parsedDate = new Date(`${log.date}T00:00:00Z`);
+  if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== log.date) {
+    return false;
+  }
+  if (!Number.isInteger(log.sys) || log.sys <= 0) return false;
+  if (!Number.isInteger(log.dia) || log.dia <= 0) return false;
+  if (log.hr !== null && (!Number.isInteger(log.hr) || log.hr <= 0)) return false;
+  if (log.weight !== null && (!Number.isFinite(log.weight) || log.weight <= 0)) return false;
+  return true;
+}
 
 bpRoutes.delete('/:id', async (c) => {
   try {

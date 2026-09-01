@@ -2,7 +2,14 @@
 
 export async function getBpLogs(db) {
   const result = await db.prepare('SELECT * FROM bp_logs ORDER BY measured_date DESC').all();
-  return result.results;
+  return result.results.map((row) => ({
+    id: row.id,
+    date: row.measured_date,
+    sys: row.systolic,
+    dia: row.diastolic,
+    hr: row.heart_rate,
+    weight: row.weight,
+  }));
 }
 
 export async function createBpLog(db, data) {

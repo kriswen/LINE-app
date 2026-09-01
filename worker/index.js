@@ -2,16 +2,12 @@
 // Uses Hono framework for routing
 
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 
 // Create Hono app
 const app = new Hono();
 
-// Middleware
-app.use('*', cors());
-
 // Import route handlers
-import { lineWebhook, pushMessageToAll } from './routes/webhook';
+import { lineWebhook } from './routes/webhook';
 import { configRoutes } from './routes/config';
 import { bpRoutes } from './routes/bp';
 import { oneoffRoutes } from './routes/oneoff';
@@ -24,7 +20,7 @@ app.post('/webhook', async (c) => {
   const body = await c.req.text();
 
   // Verify LINE signature
-  if (!signature || !verifyLineSignature(body, signature, c.env.CHANNEL_SECRET)) {
+  if (!signature || !(await verifyLineSignature(body, signature, c.env.CHANNEL_SECRET))) {
     console.log('Invalid LINE signature');
     return c.text('Invalid signature', 401);
   }

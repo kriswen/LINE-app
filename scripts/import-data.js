@@ -4,24 +4,43 @@
 
 import fs from 'fs';
 import path from 'path';
-import { createClient } from '@libsql/client'; // For local testing with libsql
-// Note: For actual migration, use wrangler d1 commands or the Cloudflare dashboard
 
-const DATA_DIR = path.join(process.cwd(), '..'); // Root of the old project
+const DATA_DIR = process.cwd();
+
+function sqlString(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function sqlInteger(value, label, { nullable = false, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  if (nullable && (value === undefined || value === null || value === '')) return 'NULL';
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < min || number > max) {
+    throw new Error(`Invalid ${label}: expected an integer from ${min} to ${max}`);
+  }
+  return String(number);
+}
+
+function sqlNumber(value, label, { nullable = false, min = 0 } = {}) {
+  if (nullable && (value === undefined || value === null || value === '')) return 'NULL';
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < min) {
+    throw new Error(`Invalid ${label}: expected a finite number greater than or equal to ${min}`);
+  }
+  return String(number);
+}
 
 // Helper to read JSON files
 function readJsonFile(filename) {
   const filePath = path.join(DATA_DIR, filename);
   if (!fs.existsSync(filePath)) {
-    console.log(`File not found: ${filePath}`);
+    console.error(`File not found: ${filePath}`);
     return null;
   }
   try {
     const data = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    console.error(`Error reading ${filename}:`, error);
-    return null;
+    throw new Error(`Error reading ${filename}: ${error.message}`, { cause: error });
   }
 }
 
@@ -36,7 +55,7 @@ function generateMigrationSQL() {
     for (const targetId of subs) {
       const id = crypto.randomUUID();
       sql.push(
-        `INSERT OR IGNORE INTO subscribers (id, line_target_id, target_type, active, created_at, updated_at) VALUES ('${id}', '${targetId.replace(/'/g, "''")}', 'group', 1, datetime('now', 'utc'), datetime('now', 'utc'));`
+        `INSERT OR IGNORE INTO subscribers (id, line_target_id, target_type, active, created_at, updated_at) VALUES (${sqlString(id)}, ${sqlString(targetId)}, 'group', 1, datetime('now', 'utc'), datetime('now', 'utc'));`
       );
     }
   }
@@ -49,17 +68,21 @@ function generateMigrationSQL() {
       const id = crypto.randomUUID();
       const time = reminder.time || '09:00';
       const daysOfWeek = reminder.daysOfWeek || [0, 1, 2, 3, 4, 5, 6];
-      const message = (reminder.message || '').replace(/'/g, "''");
+      const message = reminder.message || '';
       const includeMedicine = reminder.includeMedicineReminder !== false ? 1 : 0;
       const includeWeather = reminder.includeWeather === true ? 1 : 0;
       const includeCalendar = reminder.includeCalendarReminder === true ? 1 : 0;
-      const calendarDays = reminder.includeCalendarReminderDays || 4;
+      const calendarDays = sqlInteger(
+        reminder.includeCalendarReminderDays || 4,
+        'calendar days',
+        { min: 1, max: 14 }
+      );
       const excludePast = reminder.excludePastCalendarEvents !== false ? 1 : 0;
       const excludeToday = reminder.excludeTodayCalendarEvents === true ? 1 : 0;
       const enabled = 1;
 
       sql.push(
-        `INSERT INTO reminder_routines (id, time, days_of_week, message, include_medicine, include_weather, include_calendar, calendar_days, exclude_past_events, exclude_today_events, enabled, created_at, updated_at) VALUES ('${id}', '${time}', '${JSON.stringify(daysOfWeek)}', '${message}', ${includeMedicine}, ${includeWeather}, ${includeCalendar}, ${calendarDays}, ${excludePast}, ${excludeToday}, ${enabled}, datetime('now', 'utc'), datetime('now', 'utc'));`
+        `INSERT INTO reminder_routines (id, time, days_of_week, message, include_medicine, include_weather, include_calendar, calendar_days, exclude_past_events, exclude_today_events, enabled, created_at, updated_at) VALUES (${sqlString(id)}, ${sqlString(time)}, ${sqlString(JSON.stringify(daysOfWeek))}, ${sqlString(message)}, ${includeMedicine}, ${includeWeather}, ${includeCalendar}, ${calendarDays}, ${excludePast}, ${excludeToday}, ${enabled}, datetime('now', 'utc'), datetime('now', 'utc'));`
       );
     }
   }
@@ -71,14 +94,19 @@ function generateMigrationSQL() {
     for (const log of bpLogs) {
       const id = log.id || crypto.randomUUID();
       const date = log.date;
-      const sys = log.sys || log.systolic;
-      const dia = log.dia || log.diastolic;
-      const hr = log.hr || log.heart_rate;
-      const weight = log.weight;
+      const rawSys = log.sys || log.systolic;
+      const rawDia = log.dia || log.diastolic;
 
-      if (date && sys && dia) {
+      if (date && rawSys && rawDia) {
+        const sys = sqlInteger(rawSys, 'systolic', { min: 1 });
+        const dia = sqlInteger(rawDia, 'diastolic', { min: 1 });
+        const hr = sqlInteger(log.hr ?? log.heart_rate, 'heart rate', {
+          nullable: true,
+          min: 1,
+        });
+        const weight = sqlNumber(log.weight, 'weight', { nullable: true, min: 0 });
         sql.push(
-          `INSERT INTO bp_logs (id, measured_date, systolic, diastolic, heart_rate, weight, created_at) VALUES ('${id}', '${date}', ${sys}, ${dia}, ${hr || 'NULL'}, ${weight || 'NULL'}, datetime('now', 'utc'));`
+          `INSERT INTO bp_logs (id, measured_date, systolic, diastolic, heart_rate, weight, created_at) VALUES (${sqlString(id)}, ${sqlString(date)}, ${sys}, ${dia}, ${hr}, ${weight}, datetime('now', 'utc'));`
         );
       }
     }
@@ -91,9 +119,9 @@ function generateMigrationSQL() {
     for (const reminder of oneOff) {
       const id = reminder.id || crypto.randomUUID();
       const scheduledAt = reminder.datetime || reminder.scheduled_at;
-      const message = (reminder.message || '').replace(/'/g, "''");
+      const message = reminder.message || '';
       const status = reminder.status || 'pending';
-      const attempts = reminder.attempts || 0;
+      const attempts = sqlInteger(reminder.attempts || 0, 'attempts');
       const lastAttemptAt = reminder.last_attempt_at || reminder.lastAttemptAt;
       const sentAt = reminder.sent_at || reminder.sentAt;
       const createdAt = reminder.created_at || reminder.createdAt || new Date().toISOString();
@@ -101,15 +129,15 @@ function generateMigrationSQL() {
       if (scheduledAt && message) {
         let lastAttemptSql = 'NULL';
         if (lastAttemptAt) {
-          lastAttemptSql = `'${lastAttemptAt}'`;
+          lastAttemptSql = sqlString(lastAttemptAt);
         }
         let sentAtSql = 'NULL';
         if (sentAt) {
-          sentAtSql = `'${sentAt}'`;
+          sentAtSql = sqlString(sentAt);
         }
 
         sql.push(
-          `INSERT INTO oneoff_reminders (id, scheduled_at, message, status, attempts, last_attempt_at, sent_at, created_at) VALUES ('${id}', '${scheduledAt}', '${message}', '${status}', ${attempts}, ${lastAttemptSql}, ${sentAtSql}, '${createdAt}');`
+          `INSERT INTO oneoff_reminders (id, scheduled_at, message, status, attempts, last_attempt_at, sent_at, created_at) VALUES (${sqlString(id)}, ${sqlString(scheduledAt)}, ${sqlString(message)}, ${sqlString(status)}, ${attempts}, ${lastAttemptSql}, ${sentAtSql}, ${sqlString(createdAt)});`
         );
       }
     }
@@ -120,13 +148,8 @@ function generateMigrationSQL() {
 
 // For direct Node.js execution with wrangler
 async function runMigration() {
-  console.log('Generating migration SQL...');
   const sql = generateMigrationSQL();
   console.log(sql);
-  console.log('\n---');
-  console.log('To apply this migration:');
-  console.log('1. Save the above SQL to a file (e.g., import-data.sql)');
-  console.log('2. Run: wrangler d1 execute line-reminder-db --remote --file import-data.sql');
 }
 
 // Export for module usage
@@ -134,5 +157,8 @@ export { generateMigrationSQL, runMigration };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runMigration().catch(console.error);
+  runMigration().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }

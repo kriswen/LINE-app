@@ -86,7 +86,13 @@ Start the dev server:
 npm run dev
 ```
 
-The dashboard will be available at `http://localhost:8787/dashboard`
+The dashboard will be available at `http://localhost:8787/`.
+
+Run the automated Worker, D1, and dashboard security tests with:
+
+```bash
+npm test
+```
 
 Test the webhook endpoint:
 ```bash
@@ -99,7 +105,10 @@ curl -X POST http://localhost:8787/webhook \
 ### 5. Deploy to Production
 
 ```bash
-# Deploy (uploads Worker, static assets, and applies D1 migrations)
+# Apply pending production D1 migrations first
+npm run d1:migrate:remote
+
+# Deploy the Worker and static assets
 npm run deploy
 ```
 
@@ -132,7 +141,7 @@ https://your-worker.your-subdomain.workers.dev/webhook
 ### 4. Verify
 
 1. Test webhook by sending "今日天氣" to the bot
-2. Check dashboard at `https://your-worker.your-subdomain.workers.dev/dashboard`
+2. Check dashboard at `https://your-worker.your-subdomain.workers.dev/`
 3. Verify scheduled reminders work (Cron runs every minute)
 
 ## Project Structure
@@ -163,7 +172,9 @@ line-app-migration/
 │   └── middleware/
 │       └── auth.js           # Admin authentication
 ├── migrations/
-│   └── 0001_initial_schema.sql
+│   ├── 0001_initial_schema.sql
+│   ├── 0002_delivery_idempotency.sql
+│   └── 0003_oneoff_error_message.sql
 ├── public/
 │   ├── index.html            # Dashboard HTML
 │   ├── app.js                # Dashboard JS
@@ -193,7 +204,7 @@ line-app-migration/
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/webhook` | LINE webhook (public) |
-| GET | `/dashboard` | Dashboard UI |
+| GET | `/` | Dashboard UI |
 | GET | `/api/config` | Get reminder config (auth) |
 | POST | `/api/config` | Save reminder config (auth) |
 | GET | `/api/bp` | Get BP logs (auth) |

@@ -4,36 +4,37 @@
 import { pushMessage } from '../utils/line-api.js';
 import { getReminderRoutines } from '../db/reminder-routines.js';
 import { getSubscribers } from '../db/subscribers.js';
-import { getPendingOneOffReminders, updateOneOffReminderStatus } from '../db/oneoff-reminders.js';
+import { claimPendingOneOffReminders, updateOneOffReminderStatus } from '../db/oneoff-reminders.js';
 import { getUpcomingCalendarReminders } from '../utils/calendar.js';
 import { fetchTaipeiWeather } from '../utils/weather.js';
-import { logDelivery } from '../db/delivery-log.js';
-import { getTaipeiDateString, getTaipeiTimeString } from '../utils/timezone.js';
+import { claimDelivery, completeDelivery, logDelivery } from '../db/delivery-log.js';
+import { getTaipeiDateString, getTaipeiDayOfWeek, getTaipeiTimeString } from '../utils/timezone.js';
 
 export async function scheduledHandler(controller, env, ctx) {
-  console.log('[CRON] Scheduled handler triggered at', new Date().toISOString());
+  const scheduledAt = new Date(controller.scheduledTime);
+  console.log('[CRON] Scheduled handler triggered at', scheduledAt.toISOString());
 
   try {
     // Process routine reminders
-    await processRoutineReminders(env);
+    await processRoutineReminders(env, scheduledAt);
 
     // Process one-off reminders
-    await processOneOffReminders(env);
+    await processOneOffReminders(env, scheduledAt);
 
     console.log('[CRON] Scheduled handler completed');
   } catch (error) {
     console.error('[CRON] Scheduled handler error:', error);
+    throw error;
   }
 }
 
-async function processRoutineReminders(env) {
+async function processRoutineReminders(env, now) {
   const routines = await getReminderRoutines(env.DB);
-  const now = new Date();
   const taipeiDate = getTaipeiDateString(now);
   const taipeiTime = getTaipeiTimeString(now); // "HH:MM"
 
   // Check if today is a valid day for each routine
-  const dayOfWeek = now.getDay(); // 0 = Sunday in JS, matches our storage
+  const dayOfWeek = getTaipeiDayOfWeek(now); // 0 = Sunday, explicitly in Asia/Taipei
 
   for (const routine of routines) {
     // Check if this routine should run today
@@ -90,8 +91,8 @@ async function processRoutineReminders(env) {
   }
 }
 
-async function processOneOffReminders(env) {
-  const pending = await getPendingOneOffReminders(env.DB);
+async function processOneOffReminders(env, now) {
+  const pending = await claimPendingOneOffReminders(env.DB, now.toISOString());
 
   if (pending.length === 0) return;
 
@@ -99,11 +100,13 @@ async function processOneOffReminders(env) {
     try {
       console.log(`[CRON] Sending one-off reminder: ${reminder.id} - ${reminder.message}`);
 
-      // Mark as sending
-      await updateOneOffReminderStatus(env.DB, reminder.id, 'sending');
-
       const messages = [{ type: 'text', text: `🔔 提醒：${reminder.message}` }];
       const subs = await getSubscribers(env.DB);
+      if (subs.length === 0) {
+        await updateOneOffReminderStatus(env.DB, reminder.id, 'failed', 'No active subscribers');
+        console.warn(`[ONE-OFF] No active subscribers for reminder ${reminder.id}`);
+        continue;
+      }
 
       let allSuccess = true;
 
@@ -158,34 +161,26 @@ async function sendReminderMessages(
   const subs = await getSubscribers(env.DB);
 
   for (const subId of subs) {
-    let allSuccess = true;
+    const delivery = {
+      reminder_type: 'routine',
+      reminder_id: routineId,
+      scheduled_for: scheduledFor,
+      subscriber_id: subId,
+    };
 
-    for (const chunk of chunks) {
-      try {
-        await pushMessage(env.CHANNEL_ACCESS_TOKEN, subId, chunk);
-        await logDelivery(env.DB, {
-          reminder_type: 'routine',
-          reminder_id: routineId,
-          scheduled_for: scheduledFor,
-          subscriber_id: subId,
-          status: 'success',
-        });
-      } catch (error) {
-        console.error(`[ROUTINE] Failed to send chunk to ${subId}:`, error);
-        await logDelivery(env.DB, {
-          reminder_type: 'routine',
-          reminder_id: routineId,
-          scheduled_for: scheduledFor,
-          subscriber_id: subId,
-          status: 'failed',
-          error_message: String(error),
-        });
-        allSuccess = false;
-      }
+    if (!(await claimDelivery(env.DB, delivery))) {
+      console.log(`[ROUTINE] Skipping already claimed delivery for ${subId}`);
+      continue;
     }
 
-    if (!allSuccess) {
-      console.log(`[ROUTINE] Some messages failed for subscriber ${subId}`);
+    try {
+      for (const chunk of chunks) {
+        await pushMessage(env.CHANNEL_ACCESS_TOKEN, subId, chunk);
+      }
+      await completeDelivery(env.DB, delivery, 'success');
+    } catch (error) {
+      console.error(`[ROUTINE] Failed to send to ${subId}:`, error);
+      await completeDelivery(env.DB, delivery, 'failed', String(error));
     }
   }
 }

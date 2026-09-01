@@ -1,11 +1,9 @@
 // LINE Webhook handler
 
-import { pushMessage, replyMessage } from '../utils/line-api.js';
+import { replyMessage } from '../utils/line-api.js';
 import { getUpcomingCalendarReminders } from '../utils/calendar.js';
 import { fetchTaipeiWeather } from '../utils/weather.js';
-import { getSubscribers, saveSubscriber } from '../db/subscribers.js';
-import { getReminderRoutines } from '../db/reminder-routines.js';
-import { logDelivery } from '../db/delivery-log.js';
+import { saveSubscriber } from '../db/subscribers.js';
 
 export async function lineWebhook(c, body) {
   try {
@@ -90,51 +88,4 @@ async function handleEvent(c, event) {
       { type: 'text', text: `請點擊以下連結開啟設定儀表板：\n${dashboardUrl}` },
     ]);
   }
-}
-
-// Push messages to all subscribers (used by scheduled reminders)
-export async function pushMessageToAll(env, messages) {
-  const subs = await getSubscribers(env.DB);
-  if (subs.length === 0) {
-    console.log('No registered chats to send reminders to.');
-    return;
-  }
-
-  const messageObjects = messages.map((text) => ({ type: 'text', text }));
-  const chunks = chunkMessages(messageObjects);
-
-  for (const id of subs) {
-    for (const chunk of chunks) {
-      try {
-        await pushMessage(env.CHANNEL_ACCESS_TOKEN, id, chunk);
-        console.log(`Successfully sent bundle to ${id}`);
-        await logDelivery(env.DB, {
-          reminder_type: 'routine',
-          reminder_id: 'scheduled',
-          scheduled_for: new Date().toISOString(),
-          subscriber_id: id,
-          status: 'success',
-        });
-      } catch (error) {
-        console.error(`Failed to send bundle to ${id}:`, error);
-        await logDelivery(env.DB, {
-          reminder_type: 'routine',
-          reminder_id: 'scheduled',
-          scheduled_for: new Date().toISOString(),
-          subscriber_id: id,
-          status: 'failed',
-          error_message: String(error),
-        });
-      }
-    }
-  }
-}
-
-// Helper function - should be in a utils file
-function chunkMessages(messages, maxChunk = 5) {
-  const chunks = [];
-  for (let i = 0; i < messages.length; i += maxChunk) {
-    chunks.push(messages.slice(i, i + maxChunk));
-  }
-  return chunks;
 }

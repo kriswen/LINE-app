@@ -42,7 +42,12 @@ export async function getAllReminderRoutines(db) {
 
 export async function createReminderRoutine(db, data) {
   const id = crypto.randomUUID();
-  await db
+  await prepareReminderInsert(db, id, data).run();
+  return id;
+}
+
+function prepareReminderInsert(db, id, data) {
+  return db
     .prepare(
       `INSERT INTO reminder_routines (id, time, days_of_week, message, include_medicine, include_weather, include_calendar, calendar_days, exclude_past_events, exclude_today_events, enabled, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'utc'), datetime('now', 'utc'))`
@@ -59,9 +64,7 @@ export async function createReminderRoutine(db, data) {
       data.excludePastCalendarEvents !== false ? 1 : 0,
       data.excludeTodayCalendarEvents ? 1 : 0,
       data.enabled !== false ? 1 : 0
-    )
-    .run();
-  return id;
+    );
 }
 
 export async function updateReminderRoutine(db, id, data) {
@@ -94,11 +97,9 @@ export async function deleteReminderRoutine(db, id) {
 }
 
 export async function replaceAllReminderRoutines(db, routines) {
-  // Delete all existing routines
-  await db.prepare('DELETE FROM reminder_routines').run();
-
-  // Insert new routines
-  for (const routine of routines) {
-    await createReminderRoutine(db, routine);
-  }
+  const statements = [
+    db.prepare('DELETE FROM reminder_routines'),
+    ...routines.map((routine) => prepareReminderInsert(db, crypto.randomUUID(), routine)),
+  ];
+  await db.batch(statements);
 }

@@ -11,8 +11,12 @@ export async function saveSubscriber(db, lineTargetId, targetType) {
   const id = crypto.randomUUID();
   await db
     .prepare(
-      `INSERT OR IGNORE INTO subscribers (id, line_target_id, target_type, active, created_at, updated_at)
-       VALUES (?, ?, ?, 1, datetime('now', 'utc'), datetime('now', 'utc'))`
+      `INSERT INTO subscribers (id, line_target_id, target_type, active, created_at, updated_at)
+       VALUES (?, ?, ?, 1, datetime('now', 'utc'), datetime('now', 'utc'))
+       ON CONFLICT(line_target_id) DO UPDATE SET
+         target_type = excluded.target_type,
+         active = 1,
+         updated_at = datetime('now', 'utc')`
     )
     .bind(id, lineTargetId, targetType)
     .run();

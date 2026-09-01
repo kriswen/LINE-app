@@ -65,6 +65,13 @@ export function isTimeMatch(cronTime, date = new Date()) {
  * Check if a day of week (0=Sunday) matches current Taipei day
  */
 export function isDayMatch(daysOfWeek, date = new Date()) {
-  const day = date.getDay(); // 0 = Sunday in JavaScript
-  return daysOfWeek.includes(day);
+  return daysOfWeek.includes(getTaipeiDayOfWeek(date));
+}
+
+export function getTaipeiDayOfWeek(date = new Date()) {
+  const weekday = date.toLocaleString('en-US', {
+    timeZone: 'Asia/Taipei',
+    weekday: 'short',
+  });
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
 }

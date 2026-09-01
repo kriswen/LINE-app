@@ -10,10 +10,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "isolatedModules": true,
-    "types": ["@cloudflare/workers-types"]
+    "isolatedModules": true
   },
   "include": [
+    "worker-configuration.d.ts",
     "worker/**/*",
     "scripts/**/*"
   ],

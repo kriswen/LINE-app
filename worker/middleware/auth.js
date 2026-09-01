@@ -9,6 +9,10 @@ export async function authenticateAdmin(c, next) {
 
   // Verify password using timing-safe comparison
   const expectedHash = c.env.ADMIN_PASSWORD_HASH;
+  if (typeof expectedHash !== 'string' || !/^[a-f0-9]{64}$/i.test(expectedHash)) {
+    console.error('ADMIN_PASSWORD_HASH is missing or invalid');
+    return c.json({ error: 'Admin authentication is not configured' }, 503);
+  }
   const encoder = new TextEncoder();
   const providedData = encoder.encode(providedPassword);
   const hashBuffer = await crypto.subtle.digest('SHA-256', providedData);
@@ -26,9 +30,6 @@ export async function authenticateAdmin(c, next) {
 
 function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
+  const encoder = new TextEncoder();
+  return crypto.subtle.timingSafeEqual(encoder.encode(a), encoder.encode(b));
 }
