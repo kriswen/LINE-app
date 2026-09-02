@@ -73,6 +73,7 @@ test("data importer preserves partial historical BP and weight records", async (
     bpLogs: [
       { id: "weight-only", date: "2026-08-01", sys: null, dia: null, hr: null, weight: 61.5 },
       { id: "partial-bp", date: "2026-08-02", sys: 118, dia: null, hr: null, weight: null },
+      { id: "legacy-zero", date: "2026-08-03", sys: 0, dia: 0, hr: null, weight: 60 },
     ],
   });
   const result = spawnSync(process.execPath, [script.pathname], {
@@ -83,6 +84,7 @@ test("data importer preserves partial historical BP and weight records", async (
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /weight-only[^;]*NULL, NULL, NULL, 61\.5/);
   assert.match(result.stdout, /partial-bp[^;]*118, NULL, NULL, NULL/);
+  assert.match(result.stdout, /legacy-zero[^;]*0, 0, NULL, 60/);
 });
 
 test("missing optional files never corrupt SQL stdout", async () => {

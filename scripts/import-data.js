@@ -102,11 +102,11 @@ function generateMigrationSQL() {
       );
 
       if (date && hasMeasurement) {
-        const sys = sqlInteger(rawSys, 'systolic', { nullable: true, min: 1 });
-        const dia = sqlInteger(rawDia, 'diastolic', { nullable: true, min: 1 });
+        const sys = sqlInteger(rawSys, 'systolic', { nullable: true, min: 0 });
+        const dia = sqlInteger(rawDia, 'diastolic', { nullable: true, min: 0 });
         const hr = sqlInteger(rawHr, 'heart rate', {
           nullable: true,
-          min: 1,
+          min: 0,
         });
         const weight = sqlNumber(log.weight, 'weight', { nullable: true, min: 0 });
         sql.push(
