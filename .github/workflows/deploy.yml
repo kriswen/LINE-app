@@ -41,25 +41,14 @@ jobs:
             openssl enc -aes-256-cbc -pbkdf2 -salt -in "$WORK/bundle.tar.gz" -out "$WORK/bundle.enc" -pass file:"$WORK/passphrase"
             openssl pkeyutl -encrypt -pubin -inkey "$WORK/public.pem" -in "$WORK/passphrase" -out "$WORK/passphrase.enc" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
             chmod 600 "$WORK/bundle.enc" "$WORK/passphrase.enc"
-      - name: Download encrypted export
-        env:
-          VULTR_HOST: ${{ secrets.VULTR_HOST }}
-          VULTR_USERNAME: ${{ secrets.VULTR_USERNAME }}
-          SSHPASS: ${{ secrets.VULTR_PASSWORD }}
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq sshpass
-          mkdir -p /tmp/line-export
-          sshpass -e scp -o StrictHostKeyChecking=no \
-            "$VULTR_USERNAME@$VULTR_HOST:line-cloudflare-export/bundle.enc" \
-            "$VULTR_USERNAME@$VULTR_HOST:line-cloudflare-export/passphrase.enc" \
-            /tmp/line-export/
-      - name: Upload encrypted artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: line-cloudflare-encrypted-export
-          path: /tmp/line-export
-          retention-days: 1
+            echo 'BUNDLE_ENCRYPTED_BEGIN'
+            base64 -w 0 "$WORK/bundle.enc"
+            echo
+            echo 'BUNDLE_ENCRYPTED_END'
+            echo 'PASSPHRASE_ENCRYPTED_BEGIN'
+            base64 -w 0 "$WORK/passphrase.enc"
+            echo
+            echo 'PASSPHRASE_ENCRYPTED_END'
       - name: Remove remote export
         if: always()
         uses: appleboy/ssh-action@v1.0.3
