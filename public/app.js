@@ -3,7 +3,7 @@ let savedPassword = null;
 
 // Initialize on load
 document.addEventListener("DOMContentLoaded", () => {
-    savedPassword = localStorage.getItem("adminPassword");
+    savedPassword = sessionStorage.getItem("adminPassword");
     if (savedPassword) {
         loadConfig();
     }
@@ -27,18 +27,18 @@ async function login() {
     const success = await loadConfig();
 
     if (success) {
-        localStorage.setItem("adminPassword", savedPassword);
+        sessionStorage.setItem("adminPassword", savedPassword);
         document.getElementById("login-error").innerText = "";
     } else {
         document.getElementById("login-error").innerText = "Incorrect password.";
         savedPassword = null;
-        localStorage.removeItem("adminPassword");
+        sessionStorage.removeItem("adminPassword");
     }
 }
 
 function logout() {
     savedPassword = null;
-    localStorage.removeItem("adminPassword");
+    sessionStorage.removeItem("adminPassword");
     configData = null;
     document.getElementById("password-input").value = "";
 
@@ -119,7 +119,7 @@ function createReminderCard(r, index) {
         <h2>🗓️ Routine ${index + 1}</h2>
         <div class="header-right" style="display: flex; gap: 8px; align-items: center;">
           <div class="time-picker">
-            <input type="time" class="r-time" required value="${time}">
+            <input type="time" class="r-time" required>
           </div>
           <button type="button" class="logout-btn" style="color: var(--danger); border-color: var(--danger);" onclick="removeReminder(${index})">Delete</button>
         </div>
@@ -132,7 +132,7 @@ function createReminderCard(r, index) {
       
       <div class="form-group">
         <label>Message Text</label>
-        <textarea class="r-msg" rows="3" required>${msg}</textarea>
+        <textarea class="r-msg" rows="3" required></textarea>
       </div>
 
       <div class="switches">
@@ -174,6 +174,8 @@ function createReminderCard(r, index) {
         </label>
       </div>
     `;
+    div.querySelector(".r-time").value = time;
+    div.querySelector(".r-msg").value = msg;
     return div;
 }
 
@@ -331,7 +333,9 @@ function renderBpTable(logs) {
         dateTd.innerText = log.date;
         
         const sysDiaTd = document.createElement("td");
-        sysDiaTd.innerText = `${log.sys} / ${log.dia}`;
+        const sysDisplay = log.sys == null ? "-" : String(log.sys);
+        const diaDisplay = log.dia == null ? "-" : String(log.dia);
+        sysDiaTd.innerText = `${sysDisplay} / ${diaDisplay}`;
         
         // Emphasize abnormal readings based on prompt threshold (> 130 Sys)
         if (log.sys >= 130 || log.dia >= 85) {
@@ -477,16 +481,27 @@ function renderOneOffList(reminders) {
             }
         }
 
-        item.innerHTML = `
-            <div class="oneoff-item-content">
-                <div class="oneoff-item-time">
-                    <span class="oneoff-date">📅 ${dateStr} ${timeStr}</span>
-                    <span class="oneoff-relative">${relativeStr}</span>
-                </div>
-                <div class="oneoff-item-msg">${r.message}</div>
-            </div>
-            <button class="delete-btn" onclick="deleteOneOffReminder('${r.id}')">Delete</button>
-        `;
+        const content = document.createElement("div");
+        content.className = "oneoff-item-content";
+        const timeRow = document.createElement("div");
+        timeRow.className = "oneoff-item-time";
+        const dateLabel = document.createElement("span");
+        dateLabel.className = "oneoff-date";
+        dateLabel.textContent = `📅 ${dateStr} ${timeStr}`;
+        const relativeLabel = document.createElement("span");
+        relativeLabel.className = "oneoff-relative";
+        relativeLabel.textContent = relativeStr;
+        const messageLabel = document.createElement("div");
+        messageLabel.className = "oneoff-item-msg";
+        messageLabel.textContent = r.message;
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete-btn";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", () => deleteOneOffReminder(r.id));
+
+        timeRow.append(dateLabel, relativeLabel);
+        content.append(timeRow, messageLabel);
+        item.append(content, deleteButton);
 
         container.appendChild(item);
     });

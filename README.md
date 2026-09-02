@@ -1,105 +1,278 @@
-# LINE Medicine & Calendar Reminder Bot (Messaging API)
+# LINE Reminder Bot - Cloudflare Workers Migration
 
-This application sends automated, highly configurable medicine reminders, weather forecasts, and calendar event schedules to a LINE Chat using the modern **LINE Messaging API**.
+This is the Cloudflare Workers + D1 migration of the original LINE Medicine & Calendar Reminder Bot.
 
-*Note: This application has been entirely redesigned. It was migrated from the deprecated LINE Notify service to the official LINE Messaging API, and it now utilizes external HTTP chron triggers instead of keeping the server awake 24/7.*
+## Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│              Cloudflare Worker                    │
+│                                                  │
+│  • fetch() handler - Webhook, API, Static assets │
+│  • scheduled() handler - Cron triggers           │
+│                                                  │
+│  Bindings:                                       │
+│  • DB (D1 Database)                              │
+│  • ASSETS (Static files)                         │
+│  • Secrets (LINE credentials, Admin password)    │
+└────────────────────────┬─────────────────────────┘
+                         │
+         ┌───────────────┼───────────────┐
+         ▼               ▼               ▼
+   ┌───────────┐   ┌───────────┐   ┌───────────┐
+   │   D1      │   │ Open-Meteo│   │ Google Cal│
+   │ Database  │   │  Weather  │   │  .ics     │
+   └───────────┘   └───────────┘   └───────────┘
+```
+
+## Prerequisites
+
+- Node.js 20+
+- Cloudflare account
+- Wrangler CLI (`npm install -g wrangler`)
+- LINE Developer Console account
+- Google Calendar with public iCal feed
+
+## Setup
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Create D1 Database
+
+```bash
+# Create the database (run once)
+npm run d1:create
+
+# Apply migrations locally
+npm run d1:migrate:local
+
+# Apply migrations to remote (production)
+npm run d1:migrate:remote
+```
+
+### 3. Configure Secrets
+
+```bash
+# Set LINE credentials
+wrangler secret put CHANNEL_ACCESS_TOKEN
+wrangler secret put CHANNEL_SECRET
+wrangler secret put GROUP_ID
+wrangler secret put CALENDAR_URL
+
+# Set admin password hash (SHA-256)
+# Generate with: echo -n "your_password" | sha256sum
+wrangler secret put ADMIN_PASSWORD_HASH
+
+# Set dashboard URL
+wrangler secret put DASHBOARD_URL
+```
+
+### 4. Local Development
+
+Create `.dev.vars` from the example:
+
+```bash
+cp .dev.vars.example .dev.vars
+# Edit .dev.vars with your values
+```
+
+Start the dev server:
+
+```bash
+npm run dev
+```
+
+The dashboard will be available at `http://localhost:8787/`.
+
+Run the automated Worker, D1, and dashboard security tests with:
+
+```bash
+npm test
+```
+
+Test the webhook endpoint:
+```bash
+curl -X POST http://localhost:8787/webhook \
+  -H "Content-Type: application/json" \
+  -H "x-line-signature: test" \
+  -d '{"events":[]}'
+```
+
+### 5. Deploy to Production
+
+```bash
+# Apply pending production D1 migrations first
+npm run d1:migrate:remote
+
+# Deploy the Worker and static assets
+npm run deploy
+```
+
+## Migration from Old Version
+
+### 1. Export Data from Vultr
+
+On your Vultr VPS, copy the JSON files:
+```bash
+scp user@vultr:~/LINE-app/{message.json,subs.json,bp-logs.json,oneoff-reminders.json} ./
+```
+
+### 2. Import Data into D1
+
+```bash
+# Generate migration SQL
+node scripts/import-data.js > import-data.sql
+
+# Apply to remote D1
+wrangler d1 execute line-reminder-db --remote --file import-data.sql
+```
+
+### 3. Update LINE Webhook URL
+
+In LINE Developer Console, change the webhook URL to:
+```
+https://your-worker.your-subdomain.workers.dev/webhook
+```
+
+### 4. Verify
+
+1. Test webhook by sending "今日天氣" to the bot
+2. Check dashboard at `https://your-worker.your-subdomain.workers.dev/`
+3. Verify scheduled reminders work (Cron runs every minute)
 
 ## Project Structure
 
 ```
-LINE-Notify/
-├── src/              # Core application code (index.js, bot.js, calendar.js)
-├── public/           # Web dashboard (HTML, CSS, JS)
-├── scripts/          # Utility scripts (send-now, setup_rich_menu, debug_cal)
-├── sandbox/          # Ad-hoc test/debug scripts
-├── assets/           # Rich menu images
-├── docs/             # Architecture docs & deploy guides
-├── .github/workflows # CI/CD & scheduled triggers
-├── message.json      # Reminder config (auto-created, gitignored)
-├── subs.json         # Subscriber list (auto-created, gitignored)
-├── bp-logs.json      # Blood pressure logs (auto-created, gitignored)
-└── oneoff-reminders.json # One-off reminders (auto-created, gitignored)
+line-app-migration/
+├── worker/
+│   ├── index.js              # Worker entry point
+│   ├── routes/
+│   │   ├── webhook.js        # LINE webhook handler
+│   │   ├── config.js         # Reminder config API
+│   │   ├── bp.js             # BP logs API
+│   │   └── oneoff.js         # One-off reminders API
+│   ├── handlers/
+│   │   └── scheduled.js      # Cron trigger handler
+│   ├── db/
+│   │   ├── subscribers.js
+│   │   ├── reminder-routines.js
+│   │   ├── bp-logs.js
+│   │   ├── oneoff-reminders.js
+│   │   └── delivery-log.js
+│   ├── utils/
+│   │   ├── line.js           # Signature verification
+│   │   ├── line-api.js       # LINE API client
+│   │   ├── weather.js        # Open-Meteo client
+│   │   ├── calendar.js       # iCal parser
+│   │   └── timezone.js       # Asia/Taipei helpers
+│   └── middleware/
+│       └── auth.js           # Admin authentication
+├── migrations/
+│   ├── 0001_initial_schema.sql
+│   ├── 0002_delivery_idempotency.sql
+│   └── 0003_oneoff_error_message.sql
+├── public/
+│   ├── index.html            # Dashboard HTML
+│   ├── app.js                # Dashboard JS
+│   └── style.css             # Dashboard CSS
+├── scripts/
+│   └── import-data.js        # Data migration script
+├── wrangler.jsonc            # Wrangler configuration
+├── package.json
+├── .dev.vars.example
+└── README.md
 ```
 
-> **Note:** The `.json` data files above are auto-created at runtime — you don't need to create them manually. See the `*.example.json` files in the project root for the expected formats.
+## Key Differences from Original
 
-## Overview
+| Feature | Original (Vultr) | Cloudflare Workers |
+|---------|------------------|-------------------|
+| Runtime | Node.js + Express | Workers Runtime + Hono |
+| Scheduling | node-cron | Cloudflare Cron Triggers |
+| Storage | JSON files | D1 (SQLite) |
+| Deployment | Docker + SSH | `wrangler deploy` |
+| Static Assets | Express static | Worker Static Assets |
+| Scaling | Manual | Automatic |
+| Cost | VPS monthly | Free tier likely sufficient |
 
-1. You create a Bot on the [LINE Developer Console](https://developers.line.biz/console/).
-2. You configure the Bot's Webhook URL to point to this application's `/webhook` route.
-3. You invite the Bot to your family group chat.
-4. When the Bot is invited, it automatically saves the `Chat ID` to a local `subs.json` file.
-5. GitHub Actions workflows automatically hit your server's `/send-morning-reminder` or `/send-evening-reminder` endpoints at scheduled times.
-6. The bot reads your `message.json` preferences and pushes the tailored message to the chat!
+## API Endpoints
 
-## Prerequisites
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/webhook` | LINE webhook (public) |
+| GET | `/` | Dashboard UI |
+| GET | `/api/config` | Get reminder config (auth) |
+| POST | `/api/config` | Save reminder config (auth) |
+| GET | `/api/bp` | Get BP logs (auth) |
+| POST | `/api/bp` | Create BP log (auth) |
+| DELETE | `/api/bp/:id` | Delete BP log (auth) |
+| GET | `/api/oneoff` | Get one-off reminders (auth) |
+| POST | `/api/oneoff` | Create one-off reminder (auth) |
+| DELETE | `/api/oneoff/:id` | Delete one-off reminder (auth) |
+| GET | `/keep-alive` | Health check |
 
-1. Create a LINE Official Account and get your **Channel Secret** and **Channel Access Token** from the [LINE Developer Console](https://developers.line.biz/console/).
-2. **Important**: By default, LINE bots are not allowed to join group chats. In your LINE Official Account Manager (under **Settings > Account details > Features**), you must change **Allow bot to join group chats** to "Enabled".
-3. Add a public Google Calendar `Secret address in iCal format` (.ics link) to fetch events.
+## Scheduled Reminders
 
-## Setup Instructions
+The Cron Trigger runs every minute (`* * * * *`). The scheduled handler:
 
-### 1. Configure the Environment
-Create a `.env` file in the project root and add your credentials:
-```env
-CHANNEL_ACCESS_TOKEN="YOUR_CHANNEL_ACCESS_TOKEN"
-CHANNEL_SECRET="YOUR_CHANNEL_SECRET"
-GROUP_ID="YOUR_LINE_GROUP_ID"
-CALENDAR_ID="YOUR_CALENDAR_ID@group.calendar.google.com"
-```
+1. Checks for routine reminders matching current Taipei time
+2. Checks for pending one-off reminders due now
+3. Fetches weather/calendar data only when needed
+4. Sends messages via LINE Messaging API
+5. Logs delivery status to D1
 
-### 2. Configure the Reminder Messages
-Edit the `message.json` file at the root of the project to customize the specific messages and features the bot will send (see `message.example.json` for the expected format):
-```json
-{
-    "reminders": [
-        {
-            "message": "早安！這是早上 9 點的吃藥提醒！",
-            "includeMedicineReminder": true,
-            "includeWeather": true,
-            "includeCalendarReminder": true,
-            "includeCalendarReminderDays": 4
-        },
-        {
-            "message": "晚安！這是晚上 9 點的吃藥提醒！"
-        }
-    ]
-}
-```
-* **includeMedicineReminder**: Set to `false` to disable the main medicine text.
-* **includeWeather**: Set to `true` to fetch and append the daily Taipei average temperature and rain chance.
-* **includeCalendarReminder**: Set to `true` to fetch upcoming events via your `CALENDAR_ID`.
-* **includeCalendarReminderDays**: The number of days (including today) to fetch calendar events for.
+## Dashboard Features
 
-### 3. Install & Run the Server Local Testing
-Install dependencies and run the local test script to verify your `message.json` payload without relying on the web server:
+- **Reminders Tab**: Configure routine reminders (time, days, message, weather, calendar)
+- **One-Off Tab**: Create one-time reminders with datetime picker
+- **BP/Weight Logs Tab**: Log and view blood pressure/weight history
+- Password-protected with SHA-256 hashed password
+
+## Free Tier Limits
+
+| Resource | Free Limit | Expected Usage |
+|----------|------------|----------------|
+| Worker Requests | 100,000/day | ~1,500/day |
+| Worker CPU | 10ms/invocation | <5ms typical |
+| D1 Reads | 5M rows/day | ~1,000/day |
+| D1 Writes | 100K rows/day | ~100/day |
+| D1 Storage | 5 GB | <1 MB |
+| Cron Triggers | Included | 1,440/day |
+
+## Troubleshooting
+
+### Worker CPU Limit Exceeded
+
+If calendar parsing exceeds CPU limit:
+- Reduce `calendar_days` in reminder config
+- Use Google Calendar API instead of iCal
+- Cache parsed calendar events in D1
+
+### Webhook Signature Verification Fails
+
+- Ensure `CHANNEL_SECRET` is correctly set in secrets
+- Check that raw request body is used for verification
+- Verify LINE Developer Console webhook URL matches
+
+### D1 Migration Issues
+
 ```bash
-npm install
-node scripts/send-now.js
+# Check migration status
+wrangler d1 migrations list line-reminder-db --remote
+
+# View database contents
+wrangler d1 execute line-reminder-db --remote --command "SELECT * FROM reminder_routines"
 ```
 
-### 4. Deploy to Render.com (Free Hosting)
+### Dashboard Not Loading
 
-This application is designed to be hosted on Render.com's Free Tier.
+- Check `assets.directory` in `wrangler.jsonc` points to `public`
+- Verify static asset routes in `worker/index.js`
 
-1. Go to [Render](https://dashboard.render.com).
-2. Connect your GitHub account and create a new **Web Service** using this repository.
-3. In the Render Dashboard, add your **Environment Variables**:
-    * `CHANNEL_ACCESS_TOKEN`
-    * `CHANNEL_SECRET`
-    * `GROUP_ID`
-    * `CALENDAR_ID`
-4. Render will automatically launch the web server.
+## License
 
-### 5. Setup the External Triggers (GitHub Actions)
-Because Render's free tier sleeps after 15 minutes of inactivity, we removed the internal node chron timers. Instead, this repository uses **GitHub Actions** to automatically wake the server up and trigger the messages.
-
-1. Go to the **Actions** tab in your GitHub Repository.
-2. You will see three baked-in workflows:
-   * **Wake Up Render Server**: Pings the server at 8:55 AM and 8:55 PM (Taipei Time) to force it to wake up before the heavy calendar processing starts.
-   * **Trigger Morning Reminder**: Hits `/send-morning-reminder` at exactly 9:00 AM.
-   * **Trigger Evening Reminder**: Hits `/send-evening-reminder` at exactly 9:00 PM.
-3. Because these actions are already in the `.github/workflows` folder, GitHub will automatically run them on schedule! No extra setup is required.
-
-Whenever GitHub Actions hits those URLs, your bot wakes up, compiles the required data, and sends the LINE message to your family group!
+MIT
