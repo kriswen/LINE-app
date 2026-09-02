@@ -27,7 +27,7 @@ jobs:
           password: ${{ secrets.VULTR_PASSWORD }}
           script: |
             set -eu
-            WORK=/tmp/line-cloudflare-export
+            WORK="$HOME/line-cloudflare-export"
             rm -rf "$WORK"
             mkdir -p "$WORK/data"
             cd LINE-app
@@ -47,9 +47,9 @@ jobs:
           host: ${{ secrets.VULTR_HOST }}
           username: ${{ secrets.VULTR_USERNAME }}
           password: ${{ secrets.VULTR_PASSWORD }}
-          source: /tmp/line-cloudflare-export/bundle.enc,/tmp/line-cloudflare-export/passphrase.enc
+          source: line-cloudflare-export/bundle.enc,line-cloudflare-export/passphrase.enc
           target: /tmp/line-export
-          strip_components: 2
+          strip_components: 1
       - name: Upload encrypted artifact
         uses: actions/upload-artifact@v4
         with:
@@ -63,7 +63,7 @@ jobs:
           host: ${{ secrets.VULTR_HOST }}
           username: ${{ secrets.VULTR_USERNAME }}
           password: ${{ secrets.VULTR_PASSWORD }}
-          script: rm -rf /tmp/line-cloudflare-export
+          script: rm -rf "$HOME/line-cloudflare-export"
 
   stop-old-bot:
     if: inputs.operation == 'stop-old-bot'
