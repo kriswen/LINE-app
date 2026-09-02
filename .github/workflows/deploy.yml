@@ -1,51 +1,82 @@
 name: Deploy to Vultr
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Secure migration operation
+        required: true
+        type: choice
+        options:
+          - export
+          - stop-old-bot
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  export:
+    if: inputs.operation == 'export'
     runs-on: ubuntu-latest
     steps:
-      - name: Execute deployment commands via SSH
+      - name: Prepare encrypted export on Vultr
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VULTR_HOST }}
           username: ${{ secrets.VULTR_USERNAME }}
           password: ${{ secrets.VULTR_PASSWORD }}
           script: |
+            set -eu
+            WORK=/tmp/line-cloudflare-export
+            rm -rf "$WORK"
+            mkdir -p "$WORK/data"
             cd LINE-app
-            # Backup Vultr's live database files before touching git
-            cp message.json /tmp/message.json.bak || true
-            cp subs.json /tmp/subs.json.bak || true
-            cp bp-logs.json /tmp/bp-logs.json.bak || true
-            cp oneoff-reminders.json /tmp/oneoff-reminders.json.bak || true
-            
-            # Force pull the latest code from GitHub
-            git fetch --all
-            git reset --hard origin/main
-            
-            # Restore Vultr's live database files over whatever GitHub just pulled
-            cp /tmp/message.json.bak message.json || true
-            cp /tmp/subs.json.bak subs.json || true
-            cp /tmp/bp-logs.json.bak bp-logs.json || true
-            cp /tmp/oneoff-reminders.json.bak oneoff-reminders.json || true
-            
-            sudo docker rm -f my-line-bot || true
-            sudo docker build -t line-bot .
-            touch message.json subs.json bp-logs.json oneoff-reminders.json
-            sudo docker run -d --name my-line-bot --restart unless-stopped \
-              -v $(pwd)/message.json:/app/message.json \
-              -v $(pwd)/subs.json:/app/subs.json \
-              -v $(pwd)/bp-logs.json:/app/bp-logs.json \
-              -v $(pwd)/oneoff-reminders.json:/app/oneoff-reminders.json \
-              -e CHANNEL_ACCESS_TOKEN="${{ secrets.CHANNEL_ACCESS_TOKEN }}" \
-              -e CHANNEL_SECRET="${{ secrets.CHANNEL_SECRET }}" \
-              -e GROUP_ID="${{ secrets.GROUP_ID }}" \
-              -e CALENDAR_URL="${{ secrets.CALENDAR_URL }}" \
-              -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
-              -e DASHBOARD_URL="${{ secrets.DASHBOARD_URL }}" \
-              -p 4000:3000 line-bot
+            for file in message.json subs.json bp-logs.json oneoff-reminders.json; do
+              if [ -f "$file" ]; then cp "$file" "$WORK/data/$file"; fi
+            done
+            sudo docker exec my-line-bot env > "$WORK/data/container.env"
+            tar -C "$WORK/data" -czf "$WORK/bundle.tar.gz" .
+            printf '%s' 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQ0lqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FnOEFNSUlDQ2dLQ0FnRUFwZ2s0WWluV3JuMDhDUjg5TURJRQpKZE8xZDd3Rkl4dGpsMGV6eko4Z2NtVHZVTkcza3A1V2pzZnNmR1ZyZjRhTWRZZ0NFVlUzaXIxSDFpTUU5d29HCmJTdUhyeEQvdnUwa05CNXdONW1HU1drMTY4bHhFOStEbmU1dFp0MksvNjZiZVJoTGpMUUlIODRkV2N2U2ZrTmEKZjBrNVE2YTk1ZFovRkpGY3NReFYrYStRNFpJQUVoOVIyTHp5eFpuNWxEbHVxL1hScm1JV0p6N1VuZXpTQm5TNQpDNktPV2NjdUNDeFYrTC9DNUtobFFodVNsVjlpaTBUNFYrZVVBYytoajAvdUdDWGpvVHJFRXprVW9Qalp4MlRuCm9nSmVqalhDc0xaOFExbTlieXZNR0NOL3lLczgyNGJONmNvZ0gyL3Q3NElDaHIySWE3NVB5elhxbkRnTm80ZkYKcmE5ZUN3Y3BodU9VRU9PeGl1TkNMWElldXVTNFh6aFdNamxYQzFNMTJPRW9STlJNb2Fra3lsb3pwTXJXM2hnTwprMzR1OHhSYkwyRTFNVGdoc1gybGV3amZ0eEFiYWpDM3AvVVNORk84Y1lwZmZ3YlZ6dllZT3M2WDFxVXg5MHlFCnRTa3gwclRVelNFM204Qlhnd3RSajZwVXZ0VFlQRmlmTmtnTURYNTBUc1FXMTU3RmNjNzVMUmNydFNqc0ZSZmcKTFYwSjNZZWlaRW9WRmlJRVpZZXd4SC9MZ3dpL3BYa204Tkh0WnNLajBFYzVPeFYvaTNNeVlpYVRkMUdmMDJYTQpHQXVsSHZDUUdoeTFuTkFCYTlWcXdtVXJWZzVkcFA2VUhXOXFiRHl0YWpqRU1FNnNpOUN2OFpCVUlnZndycXIwCnRMbDd2bklDWHFtQ291NGp6NktQOWVzQ0F3RUFBUT09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=' | base64 -d > "$WORK/public.pem"
+            openssl rand -hex 32 > "$WORK/passphrase"
+            openssl enc -aes-256-cbc -pbkdf2 -salt -in "$WORK/bundle.tar.gz" -out "$WORK/bundle.enc" -pass file:"$WORK/passphrase"
+            openssl pkeyutl -encrypt -pubin -inkey "$WORK/public.pem" -in "$WORK/passphrase" -out "$WORK/passphrase.enc" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
+            chmod 600 "$WORK/bundle.enc" "$WORK/passphrase.enc"
+      - name: Download encrypted export
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: ${{ secrets.VULTR_USERNAME }}
+          password: ${{ secrets.VULTR_PASSWORD }}
+          source: /tmp/line-cloudflare-export/bundle.enc,/tmp/line-cloudflare-export/passphrase.enc
+          target: /tmp/line-export
+          strip_components: 2
+      - name: Upload encrypted artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: line-cloudflare-encrypted-export
+          path: /tmp/line-export
+          retention-days: 1
+      - name: Remove remote export
+        if: always()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: ${{ secrets.VULTR_USERNAME }}
+          password: ${{ secrets.VULTR_PASSWORD }}
+          script: rm -rf /tmp/line-cloudflare-export
+
+  stop-old-bot:
+    if: inputs.operation == 'stop-old-bot'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disable and stop old LINE bot
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: ${{ secrets.VULTR_USERNAME }}
+          password: ${{ secrets.VULTR_PASSWORD }}
+          script: |
+            set -eu
+            sudo docker update --restart=no my-line-bot
+            sudo docker stop my-line-bot
+            test "$(sudo docker inspect -f '{{.State.Running}}' my-line-bot)" = "false"
