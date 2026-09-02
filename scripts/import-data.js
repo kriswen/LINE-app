@@ -94,13 +94,17 @@ function generateMigrationSQL() {
     for (const log of bpLogs) {
       const id = log.id || crypto.randomUUID();
       const date = log.date;
-      const rawSys = log.sys || log.systolic;
-      const rawDia = log.dia || log.diastolic;
+      const rawSys = log.sys ?? log.systolic;
+      const rawDia = log.dia ?? log.diastolic;
+      const rawHr = log.hr ?? log.heart_rate;
+      const hasMeasurement = [rawSys, rawDia, rawHr, log.weight].some(
+        (value) => value !== undefined && value !== null && value !== ''
+      );
 
-      if (date && rawSys && rawDia) {
-        const sys = sqlInteger(rawSys, 'systolic', { min: 1 });
-        const dia = sqlInteger(rawDia, 'diastolic', { min: 1 });
-        const hr = sqlInteger(log.hr ?? log.heart_rate, 'heart rate', {
+      if (date && hasMeasurement) {
+        const sys = sqlInteger(rawSys, 'systolic', { nullable: true, min: 1 });
+        const dia = sqlInteger(rawDia, 'diastolic', { nullable: true, min: 1 });
+        const hr = sqlInteger(rawHr, 'heart rate', {
           nullable: true,
           min: 1,
         });

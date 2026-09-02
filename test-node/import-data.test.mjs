@@ -68,6 +68,23 @@ test("data importer rejects non-numeric values instead of emitting executable SQ
   assert.match(result.stderr, /Invalid systolic/);
 });
 
+test("data importer preserves partial historical BP and weight records", async () => {
+  const cwd = await fixtureDirectory({
+    bpLogs: [
+      { id: "weight-only", date: "2026-08-01", sys: null, dia: null, hr: null, weight: 61.5 },
+      { id: "partial-bp", date: "2026-08-02", sys: 118, dia: null, hr: null, weight: null },
+    ],
+  });
+  const result = spawnSync(process.execPath, [script.pathname], {
+    cwd,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /weight-only[^;]*NULL, NULL, NULL, 61\.5/);
+  assert.match(result.stdout, /partial-bp[^;]*118, NULL, NULL, NULL/);
+});
+
 test("missing optional files never corrupt SQL stdout", async () => {
   const cwd = await fixtureDirectory();
   await unlink(path.join(cwd, "oneoff-reminders.json"));

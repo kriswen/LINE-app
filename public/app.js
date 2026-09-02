@@ -333,7 +333,9 @@ function renderBpTable(logs) {
         dateTd.innerText = log.date;
         
         const sysDiaTd = document.createElement("td");
-        sysDiaTd.innerText = `${log.sys} / ${log.dia}`;
+        const sysDisplay = log.sys == null ? "-" : String(log.sys);
+        const diaDisplay = log.dia == null ? "-" : String(log.dia);
+        sysDiaTd.innerText = `${sysDisplay} / ${diaDisplay}`;
         
         // Emphasize abnormal readings based on prompt threshold (> 130 Sys)
         if (log.sys >= 130 || log.dia >= 85) {

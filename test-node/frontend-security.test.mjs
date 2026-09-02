@@ -50,3 +50,17 @@ test("one-off reminder messages are rendered as text, not HTML", () => {
   assert.equal(container.querySelector("img"), null);
   assert.equal(container.querySelector(".oneoff-item-msg").textContent, malicious);
 });
+
+test("partial historical measurements render missing BP values as dashes", () => {
+  const dom = new JSDOM('<table><tbody id="bp-table-body"></tbody></table>', {
+    runScripts: "outside-only",
+    url: "https://example.com/",
+  });
+  dom.window.eval(appSource);
+  dom.window.renderBpTable([
+    { id: "weight-only", date: "2026-08-01", sys: null, dia: null, hr: null, weight: 61.5 },
+  ]);
+
+  const cells = [...dom.window.document.querySelectorAll("td")].map((cell) => String(cell.innerText));
+  assert.deepEqual(cells.slice(0, 4), ["2026-08-01", "- / -", "-", "61.5"]);
+});
